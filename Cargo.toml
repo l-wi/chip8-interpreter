@@ -1,0 +1,11 @@
+[package]
+name = "chip8"
+version = "0.1.0"
+authors = ["Tim Steuer <steuer.tim@gmail.com>"]
+
+[dependencies]
+
+
+rand = "0.3"
+
+native-windows-gui = "0.2.0"
