@@ -10,6 +10,8 @@ use CanvasId::*;
 use nwg::{Event, EventArgs, Ui,fatal_message,dispatch_events,Timer};
 use nwg::constants as nwgc;
 
+use std::sync::mpsc::TryRecvError::Disconnected;
+use std::sync::mpsc::TryRecvError::Empty;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
@@ -62,10 +64,15 @@ nwg_template!(
 
             renderer.clear(0.3,0.3,0.6,1.0);
 
+            
+            
 
-            let gfx = match gfx_rx.recv(){
+            let gfx = match gfx_rx.try_recv(){
                 Ok(gfx) => gfx,
-                Err(err) => panic!(err),
+                Err(err) => match err {
+                    Empty=> return,
+                    Disconnected => panic!("disconnected"),
+                },
             };
 
             for row in 0..32{
@@ -91,7 +98,10 @@ nwg_template!(
                 &EventArgs::Key(k) => {
                     let pressed = ((k as u8) as char).to_lowercase().next().unwrap();
                     let key_tx = nwg_get_mut!(app;(KeyEventTx, Sender<char>));
-                    key_tx.send(pressed);
+                    match key_tx.send(pressed) {
+                        Ok(_) => (),
+                        Err(err) => panic!(err),
+                    };
 
                 },
                 _ => println!("not a key"),
@@ -101,7 +111,10 @@ nwg_template!(
 
         (MainWindow, KeyUp,Event::KeyUp, |app,_,_,_| {
                     let key_tx = nwg_get_mut!(app;(KeyEventTx, Sender<char>));
-                    key_tx.send('_');
+                    match key_tx.send('_') {
+                        Ok(_) => (),
+                        Err(err) => panic!(err),
+                    };
         })
 
     ];
@@ -124,7 +137,6 @@ fn setup_canvas_resources(app: &Ui<CanvasId>){
 
 
 fn main() {
-
 
 
     let app: Ui<CanvasId>;
@@ -161,7 +173,7 @@ fn main() {
         //  rx in UI draws all the old frames before the changed ones
         let frame_rate = Duration::from_millis(1000/60);
         
-        //slow down the loop to aprox. 1 Megahertz, otherwise keypresses are too fast.
+        //slow down the loop, therwise keypresses are too fast.
         let clock_rate = Duration::new(0,1000);
 
         let mut now = std::time::Instant::now();
@@ -178,7 +190,11 @@ fn main() {
             
             if now.elapsed() >= frame_rate {
                 chip8.decrease_dt();
-                gfx_tx.send(*chip8.get_gfx());
+                match gfx_tx.send(*chip8.get_gfx()){
+                    Ok(_) => (),
+                    Err(err) => panic!(err),
+                }
+                
                 now = std::time::Instant::now();
             }
         
